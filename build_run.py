@@ -90,6 +90,7 @@ parser.add_argument('-ir', '--image_repo', dest='image_repo', type=str, help='Ta
 parser.add_argument('-in', '--image_name', dest='image_name', type=str, help='Name of the dev image', default='vulkan-dev')
 parser.add_argument('-it', '--image_tag', dest='image_tag', type=str, help='Tag of the dev image', default='latest')
 parser.add_argument('-c', '--container_name', dest='container_name', type=str, help='Name of the dev container', default='vulkan-dev')
+parser.add_argument('-d', '--dockerfile', dest='dockerfile', type=str, help='Dockerfile to build the image', default='')
 parser.add_argument('-ba', '--build_args', dest='build_args', type=str, help="Docker Build args container passed in StringList formatter sep=' '", default=None)
 
 args: argparse.Namespace = parser.parse_args()
@@ -106,7 +107,10 @@ image: str = f"{args.image_repo}/{args.image_name}:{args.image_tag}"
 image = image.removeprefix('/')
 
 if args.build:
-    build(image=image, dockerfile='Dockerfile.base' if args.base else 'Dockerfile', build_args=args.build_args, retry=args.retry)
+    dockerfile: str = args.dockerfile
+    if not len(dockerfile) > 0:
+        dockerfile = 'Dockerfile.base' if args.base else 'Dockerfile'
+    build(image=image, dockerfile=dockerfile, build_args=args.build_args, retry=args.retry)
 
 if args.run:
     run(project_path=args.project_path, image=image, container_name=args.container_name)

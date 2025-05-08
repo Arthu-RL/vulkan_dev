@@ -1,13 +1,126 @@
 ###########################################
 #  arthurrl/vulkan-dev:base as the base image 
 ###########################################
-FROM arthurrl/vulkan-dev:base
+FROM arthurrl/vulkan-dev:base AS builder
 
 
 ###########################################
 #  Build Args
 ###########################################
 # Empty
+
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+
+##########################################
+#  Install basic dependencies with apt
+##########################################
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    wget \
+    unzip \
+    dkms \
+    git \
+    make \
+    gdb \
+    flex \
+    bison \
+    texinfo \
+    pkg-config \
+    gnupg \
+    gnupg2 \
+    yasm \
+    locales \
+    lsb-release \
+    ca-certificates \
+    software-properties-common \
+    libgmp-dev \
+    libmpfr-dev \
+    libmpc-dev \
+    lldb \
+    libdw-dev \
+    libffi-dev \
+    libxml2 \
+    zlib1g-dev \
+    libsqlite3-dev \
+    libpqxx-dev \
+    libssl-dev \
+    libsecret-1-dev \
+    libgcrypt20-dev \
+    xz-utils \
+    libxcb-cursor-dev \
+    libx11-xcb1 \
+    libx11-dev \
+    libxi6 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libxext-dev \
+    libxrandr-dev \
+    libxrender-dev \
+    libxcb1-dev \
+    libxcb-glx0-dev \
+    libxcb-keysyms1-dev \
+    libxcb-image0-dev \
+    libxcb-shm0-dev \
+    libxcb-icccm4-dev \
+    libxcb-sync0-dev \
+    libxcb-xfixes0-dev \
+    libxcb-shape0-dev \
+    libxcb-randr0-dev \
+    libxcb-render-util0-dev \
+    libxcb-xinerama0-dev \
+    libxi-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
+    libxkbcommon-x11-0 \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libglvnd-dev \
+    libgl1-mesa-dev \
+    libegl1-mesa-dev \
+    libgles2-mesa-dev \
+    libgtk-3-dev \
+    libsm6 \
+    libice6 \
+    libpci-dev \
+    libpulse-dev \
+    libudev-dev \
+    libxtst-dev \
+    mesa-common-dev \
+    mesa-utils \
+    libjsoncpp-dev \
+    libblas-dev \
+    liblapack-dev \
+    libopus-dev \
+    libminizip-dev \
+    libeigen3-dev \
+    libevent-dev \
+    libasound2-dev \
+    libcpprest-dev \
+    alsa-base \
+    alsa-utils \
+    pulseaudio \
+    libvulkan1 vulkan-tools vulkan-utils mesa-vulkan-drivers \
+    libglvnd0 \
+    libglu1-mesa-dev \
+    x11-xserver-utils \
+    libwayland-dev wayland-protocols \
+    xorg-dev \
+    nasm \
+    libx264-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+
+#######################################
+#  Install Python and psutil
+#######################################
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev python3-pip && \
+    pip3 install psutil && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
 ###################################
@@ -231,10 +344,75 @@ ENV PKG_CONFIG_PATH="${LIBRARY_PATH}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 RUN apt-get clean && apt-get autoremove -y
 
 
+FROM arthurrl/vulkan-dev:base AS runtime
+
+
+ENV LIBRARY_PATH="/usr/local"
+
+# Copy only necessary files from builder
+COPY --from=builder ${LIBRARY_PATH} ${LIBRARY_PATH}
+
+RUN apt-get update && apt-get -y upgrade && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+############################################
+# Important environment variables set up
+############################################
+ENV LIBRARY_PATH="/usr/local"
+ENV VULKAN_SDK_VERSION="1.4.304.1"
+ENV VULKAN_ROOT="${LIBRARY_PATH}/VulkanSDK/${VULKAN_SDK_VERSION}"
+RUN chmod +x ${VULKAN_ROOT}/setup-env.sh && \
+    echo "source ${VULKAN_ROOT}/setup-env.sh" >> ~/.bashrc
+
+# Set include paths for compilation
+ENV CPLUS_INCLUDE_PATH="${LIBRARY_PATH}/include:${LIBRARY_PATH}/tensorrt/include:${LIBRARY_PATH}/cuda/include"
+ENV LD_LIBRARY_PATH="${LIBRARY_PATH}/lib:${LIBRARY_PATH}/tensorrt/lib:${LIBRARY_PATH}/cuda/lib64:${LD_LIBRARY_PATH}"
+ENV PATH="${LIBRARY_PATH}/cuda/bin:${LIBRARY_PATH}/tensorrt/bin:${PATH}"
+ENV PKG_CONFIG_PATH="${LIBRARY_PATH}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+
+#######################################
+#  Container especific dependencies
+#######################################
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl nano wget && \
+    rm -rf /var/lib/apt/lists/*
+
+
+#######################################
+#  Timezone
+#######################################
+ENV TZ=America/Sao_Paulo
+RUN apt-get update && apt-get -y upgrade && \
+    apt-get install -y --no-install-recommends tzdata && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
+    rm -rf /var/lib/apt/lists/*
+
+
+###################################
+#  Locale and Language
+###################################
+RUN apt-get update && apt-get -y upgrade && \
+    apt-get install -y --no-install-recommends locales && \
+    rm -rf /var/lib/apt/lists/*
+RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
+
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+
+###########################################
+#  Labels for metadata
+###########################################
+LABEL org.opencontainers.image.authors="ArthurRL"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.description="Development environment with Qt, FFmpeg, CUDA"
+
+
 ############################################
 # Pre-Configs
 ############################################
-WORKDIR ["/workspace"]
+WORKDIR /workspace
 
 
 ############################################
